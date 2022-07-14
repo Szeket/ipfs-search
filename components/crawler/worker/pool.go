@@ -166,7 +166,7 @@ func (w *Pool) getQueues(ctx context.Context) (*crawler.Queues, error) {
 	}, nil
 }
 
-func (w *Pool) crawlDelivery(ctx context.Context, d samqp.Delivery) error {
+func (w *Pool) crawlDelivery(ctx context.Context, name string, d samqp.Delivery) error {
 	// TODO: Get SpanContext from Delivery.
 	// ctx = trace.ContextWithRemoteSpanContext(ctx, p.SpanContext)
 	ctx, span := w.Tracer.Start(ctx, "crawler.worker.crawlDelivery", trace.WithNewRoot())
@@ -187,9 +187,9 @@ func (w *Pool) crawlDelivery(ctx context.Context, d samqp.Delivery) error {
 		return err
 	}
 
-	log.Printf("Crawling '%s'", r)
+	log.Printf("(%s) Crawling '%s'", name, r)
 	err := w.crawler.Crawl(ctx, r)
-	log.Printf("Done crawling '%s', result: %v", r, err)
+	log.Printf("(%s) Done crawling '%s', result: %v", name, r, err)
 
 	if err != nil {
 		span.RecordError(ctx, err, trace.WithErrorStatus(codes.Error))
@@ -202,6 +202,8 @@ func (w *Pool) startWorker(ctx context.Context, deliveries <-chan samqp.Delivery
 	ctx, span := w.Tracer.Start(ctx, "crawler.worker.startWorker")
 	defer span.End()
 
+	ll := NewLoadLimiter(name, 0.8, 10*time.Second, 5*time.Minute)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -211,7 +213,13 @@ func (w *Pool) startWorker(ctx context.Context, deliveries <-chan samqp.Delivery
 				// This is a fatal error; it should never happen - crash the program!
 				panic("unexpected channel close")
 			}
-			if err := w.crawlDelivery(ctx, d); err != nil {
+
+			if err := ll.LoadLimit(); err != nil {
+				log.Printf("load limit exception: %s", err)
+				span.RecordError(ctx, err)
+			}
+
+			if err := w.crawlDelivery(ctx, name, d); err != nil {
 				// By default, do not retry.
 				shouldRetry := false
 

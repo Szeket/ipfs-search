@@ -14,6 +14,7 @@ require (
 	github.com/libp2p/go-eventbus v0.2.1
 	github.com/libp2p/go-libp2p-core v0.6.1
 	github.com/libp2p/go-libp2p-kad-dht v0.10.0
+	github.com/mikoim/go-loadavg v0.0.0-20150917074714-35ece5f6d547
 	github.com/multiformats/go-base32 v0.0.3
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/opensearch-project/opensearch-go/v2 v2.0.0
